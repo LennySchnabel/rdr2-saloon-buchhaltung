@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>RDR2 Saloon Buchhaltung</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: Georgia, serif; background:#2b1d0e; color:#f5e6c8; margin:0; padding:20px; }
+    h1,h2,h3 { text-align:center; }
+    .card { background:#3a2615; border-radius:14px; padding:16px; margin-bottom:20px; box-shadow:0 10px 25px rgba(0,0,0,.4); }
+    label { display:block; margin-top:8px; }
+    input, select { width:100%; padding:6px; margin-top:4px; border-radius:6px; border:none; }
+    button { margin-top:12px; padding:10px; width:100%; border:none; border-radius:8px; background:#a67c52; font-weight:bold; cursor:pointer; }
+    table { width:100%; border-collapse:collapse; margin-top:10px; }
+    th,td { border-bottom:1px solid #6b4b2a; padding:6px; text-align:center; }
+    .summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+    .box { background:#4a321d; padding:10px; border-radius:10px; text-align:center; }
+  </style>
+</head>
+<body>
+
+<h1>🤠 RDR2 Saloon Buchhaltung</h1>
+<p style="text-align:center">Realistische Schicht-Buchführung</p>
+
+<div class="card">
+  <h2>Neue Schicht</h2>
+  <label>Datum<input id="date" type="date"></label>
+  <label>Schicht von<input id="from" type="time"></label>
+  <label>Schicht bis<input id="to" type="time"></label>
+  <label>Kasse Start ($)<input id="cashStart" type="number"></label>
+  <label>Kasse Ende ($)<input id="cashEnd" type="number"></label>
+  <label>Wareneinkauf ($)<input id="costs" type="number"></label>
+  <label>Trinkgeld ($)<input id="tips" type="number"></label>
+  <button onclick="addShift()">Schicht speichern</button>
+</div>
+
+<div class="card">
+  <h2>🍺 Getränkeverkauf (für Trinkgeld)</h2>
+  <label>Getränk<input id="drink"></label>
+  <label>Menge<input id="drinkQty" type="number"></label>
+  <label>Verkaufspreis ($)<input id="drinkSell" type="number"></label>
+  <label>RP-Standardpreis ($)<input id="drinkBase" type="number"></label>
+  <button onclick="addDrink()">Getränk hinzufügen</button>
+</div>
+
+<div class="card">
+  <h2>Lagerbestand (pro Schicht)</h2>
+  <label>Produkt<input id="product"></label>
+  <label>Kategorie<select id="cat"><option>Drink</option><option>Essen</option></select></label>
+  <label>Bestand Start<input id="stockStart" type="number"></label>
+  <label>Bestand Ende<input id="stockEnd" type="number"></label>
+  <button onclick="addStock()">Lager speichern</button>
+</div>
+
+<div class="card">
+  <h2>Gesamtübersicht</h2>
+  <div class="summary">
+    <div class="box">Gesamtumsatz<br><span id="rev">0</span> $</div>
+    <div class="box">Gesamtgewinn<br><span id="profit">0</span> $</div>
+    <div class="box">Trinkgeld<br><span id="tipsTotal">0</span> $</div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Schichtbuch</h2>
+  <table id="table">
+    <tr><th>Datum</th><th>Zeit</th><th>Umsatz</th><th>Gewinn</th><th>Trinkgeld</th></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h2>Lagerbuch</h2>
+  <table id="stockTable">
+    <tr><th>Produkt</th><th>Kategorie</th><th>Start</th><th>Ende</th><th>Verbrauch</th></tr>
+  </table>
+</div>
+
+<script>
+let shifts = JSON.parse(localStorage.getItem('shifts')||'[]');
+let stocks = JSON.parse(localStorage.getItem('stocks')||'[]');
+let drinks = JSON.parse(localStorage.getItem('drinks')||'[]');(localStorage.getItem('shifts')||'[]');
+let stocks = JSON.parse(localStorage.getItem('stocks')||'[]');
+
+function addShift() {
+  const cs = +cashStart.value;
+  const ce = +cashEnd.value;
+  const c = +costs.value;
+  const t = +tips.value;
+  const revenue = ce - cs;
+  const profit = revenue - c;
+
+  shifts.push({ date:date.value, time:from.value+'–'+to.value, revenue, profit, tips:t });
+  localStorage.setItem('shifts', JSON.stringify(shifts));
+  render();
+});
+  render();
+}
+
+function addDrink(){
+  const qty=+drinkQty.value;
+  const tip=(+drinkSell.value-+drinkBase.value)*qty;
+  drinks.push({name:drink.value,qty,tip});
+  localStorage.setItem('drinks',JSON.stringify(drinks));
+  tips.value=(+tips.value||0)+tip;
+}
+
+function addStock() {
+  const s = +stockStart.value;
+  const e = +stockEnd.value;
+  stocks.push({ product:product.value, cat:cat.value, start:s, end:e, used:s-e });
+  localStorage.setItem('stocks', JSON.stringify(stocks));
+  render();
+});
+  render();
+}
+
+function render() {
+  table.innerHTML='<tr><th>Datum</th><th>Zeit</th><th>Umsatz</th><th>Gewinn</th><th>Trinkgeld</th></tr>';
+  stockTable.innerHTML='<tr><th>Produkt</th><th>Kategorie</th><th>Start</th><th>Ende</th><th>Verbrauch</th></tr>';
+  let r=0,p=0,t=0;
+  shifts.forEach(e=>{
+    r+=e.revenue; p+=e.profit; t+=e.tips;
+    table.innerHTML+=`<tr><td>${e.date}</td><td>${e.time}</td><td>${e.revenue}</td><td>${e.profit}</td><td>${e.tips}</td></tr>`;
+  });
+  stocks.forEach(s=>{
+    stockTable.innerHTML+=`<tr><td>${s.product}</td><td>${s.cat}</td><td>${s.start}</td><td>${s.end}</td><td>${s.used}</td></tr>`;
+  });
+  rev.textContent=r; profit.textContent=p; tipsTotal.textContent=t;
+}</td><td>${e.time}</td><td>${e.revenue}</td><td>${e.profit}</td><td>${e.tips}</td></tr>`;
+  });
+  stocks.forEach(s=>{
+    stockTable.innerHTML+=`<tr><td>${s.product}</td><td>${s.cat}</td><td>${s.start}</td><td>${s.end}</td><td>${s.used}</td></tr>`;
+  });
+  rev.textContent=r; profit.textContent=p; tipsTotal.textContent=t;
+}
+// --- STATISTIKEN ---
+function getWeek(dateStr){
+  const d=new Date(dateStr);const onejan=new Date(d.getFullYear(),0,1);
+  return Math.ceil((((d-onejan)/86400000)+onejan.getDay()+1)/7);
+}
+
+function renderStats(){
+  const weekly={}, monthly={};
+  shifts.forEach(s=>{
+    const w=s.date?getWeek(s.date):'Unbekannt';
+    const m=s.date?s.date.slice(0,7):'Unbekannt';
+    weekly[w]=(weekly[w]||0)+s.profit;
+    monthly[m]=(monthly[m]||0)+s.profit;
+  });
+  weekTable.innerHTML='<tr><th>Woche</th><th>Gewinn</th></tr>';
+  Object.keys(weekly).forEach(w=>{
+    weekTable.innerHTML+=`<tr><td>${w}</td><td>${weekly[w]}</td></tr>`;
+  });
+  monthTable.innerHTML='<tr><th>Monat</th><th>Gewinn</th></tr>';
+  Object.keys(monthly).forEach(m=>{
+    monthTable.innerHTML+=`<tr><td>${m}</td><td>${monthly[m]}</td></tr>`;
+  });
+  drawChart(monthly);
+}, monthly={};
+  shifts.forEach(s=>{
+    const w=s.date?getWeek(s.date):'Unbekannt';
+    const m=s.date?s.date.slice(0,7):'Unbekannt';
+    weekly[w]=(weekly[w]||0)+s.profit;
+    monthly[m]=(monthly[m]||0)+s.profit;
+  });
+  weekTable.innerHTML='<tr><th>Woche</th><th>Gewinn</th></tr>';
+  Object.keys(weekly).forEach(w=>{
+    weekTable.innerHTML+=`<tr><td>${w}</td><td>${weekly[w]}</td></tr>`;
+  });
+  monthTable.innerHTML='<tr><th>Monat</th><th>Gewinn</th></tr>';
+  Object.keys(monthly).forEach(m=>{
+    monthTable.innerHTML+=`<tr><td>${m}</td><td>${monthly[m]}</td></tr>`;
+  });
+}
+
+const oldRender = render;
+render = function(){ oldRender(); renderStats(); };
+render();
+function drawChart(data){
+  const canvas=document.getElementById('chart');
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const keys=Object.keys(data);
+  if(keys.length===0) return;
+  const max=Math.max(...Object.values(data));
+  const step=canvas.width/(keys.length+1);
+  ctx.strokeStyle='#f5e6c8';
+  ctx.beginPath();
+  keys.forEach((k,i)=>{
+    const x=step*(i+1);
+    const y=canvas.height-(data[k]/max)*(canvas.height-20)-10;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    ctx.fillText(k,x-15,canvas.height-2);
+  });
+  ctx.stroke();
+}
+
+render();
+</script>
+
+<div class="card">
+  <h2>📈 Wochenstatistik</h2>
+  <table id="weekTable"></table>
+</div>
+
+<div class="card">
+  <h2>📆 Monatsstatistik</h2>
+  <table id="monthTable"></table>
+</div>
+
+<div class="card">
+  <h2>📊 Gewinnverlauf</h2>
+  <canvas id="chart" height="200"></canvas>
+</div>
+
+</body>
+</html>
